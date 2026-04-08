@@ -244,6 +244,7 @@ public:
 
 	class const_iterator;
 	class iterator {
+		friend class const_iterator;
 	private:
 		// 指示当前所在的数组
 		typename double_list<circ*>::iterator it = double_list<circ*>().end();
@@ -260,18 +261,58 @@ public:
 	* same for operator-.
 	*/
 	iterator operator+(const int &n) const {
-		// // TODO
-		// int left = n;
-		// typename double_list<circ*>::iterator curr = it;
-		// if (local_sz - local_ptr > n) {
-		// 	T* out = &(*it->query(local_ptr + n));
-		// 	return iterator(it, local_ptr + n, local_sz, global_ptr + n, out);
-		// }
-		// while (left > (*curr)->size) {
-
-		// }
+		if (n < 0) return *this - (-n);
+		if (global_ptr + n > vec->tt_size) throw sjtu::index_out_of_bound();
+		if (global_ptr + n == vec->tt_size) {
+			return iterator(vec->data.end(), 0, vec->tt_size, vec); 
+		}
+		int left = n;
+		typename double_list<circ*>::iterator curr = it;
+		if ((*it)->size - local_ptr > n) {
+			return iterator(it, local_ptr + n, global_ptr + n, vec);
+		}
+		left -= ((*it)->size - local_ptr);
+		curr++;
+		while (left >= (*curr)->size) {
+			left -= (*curr)->size;
+			curr++;
+		}
+		return iterator(curr, left, global_ptr + n, vec);
 	}
-	iterator operator-(const int &n) const {}
+	iterator operator-(const int &n) const {
+		if (n < 0) return *this + (-n);
+		if (global_ptr - n < 0) throw sjtu::index_out_of_bound();
+
+		if (n == 0) return *this;
+
+		int left = n;
+		typename double_list<circ*>::iterator curr = it;
+
+		if (global_ptr == vec->tt_size) {
+			curr--; 
+			left -= 1; 
+			int curr_local_ptr = (*curr)->size - 1;
+			
+			if (curr_local_ptr >= left) {
+					return iterator(curr, curr_local_ptr - left, global_ptr - n, vec);
+			}
+			left -= (curr_local_ptr + 1);
+			curr--;
+		} 
+		else {
+			if (local_ptr >= n) {
+					return iterator(it, local_ptr - n, global_ptr - n, vec);
+			}
+			left -= (local_ptr + 1);
+			curr--;
+		}
+
+		while (left >= (*curr)->size) {
+			left -= (*curr)->size;
+			curr--;
+		}
+		return iterator(curr, (*curr)->size - 1 - left, global_ptr - n, vec);
+	}
 
 	/**
 	* return the distance between two iterators.
@@ -390,6 +431,187 @@ public:
 		* you can copy them, but with care!
 		* and it should be able to be constructed from an iterator.
 		*/
+
+	private:
+		// 指示当前所在的数组
+		typename double_list<circ*>::iterator it = double_list<circ*>().end();
+		int local_ptr = -1;
+		int global_ptr = -1;
+		const deque<T>* vec = nullptr;
+
+	public:
+	const_iterator(typename double_list<circ*>::iterator otit, int lp, int gp, const deque<T>* dptr): 
+		it(otit), local_ptr(lp), global_ptr(gp), vec(dptr) {}
+	const_iterator(iterator ncit) : it(ncit.it), local_ptr(ncit.local_ptr), global_ptr(ncit.global_ptr), vec(ncit.vec) {}
+	/**
+	* return a new iterator which points to the n-next element.
+	* if there are not enough elements, the behaviour is undefined.
+	* same for operator-.
+	*/
+	const_iterator operator+(const int &n) const {
+		if (n < 0) return *this - (-n);
+		if (global_ptr + n > vec->tt_size) throw sjtu::index_out_of_bound();
+		if (global_ptr + n == vec->tt_size) {
+			return const_iterator(vec->data.end(), 0, vec->tt_size, vec); 
+		}
+		int left = n;
+		typename double_list<circ*>::iterator curr = it;
+		if ((*it)->size - local_ptr > n) {
+			return const_iterator(it, local_ptr + n, global_ptr + n, vec);
+		}
+		left -= ((*it)->size - local_ptr);
+		curr++;
+		while (left >= (*curr)->size) {
+			left -= (*curr)->size;
+			curr++;
+		}
+		return const_iterator(curr, left, global_ptr + n, vec);
+	}
+	const_iterator operator-(const int &n) const {
+		if (n < 0) return *this + (-n);
+		if (global_ptr - n < 0) throw sjtu::index_out_of_bound();
+
+		if (n == 0) return *this;
+
+		int left = n;
+		typename double_list<circ*>::iterator curr = it;
+
+		if (global_ptr == vec->tt_size) {
+			curr--; 
+			left -= 1; 
+			int curr_local_ptr = (*curr)->size - 1;
+			
+			if (curr_local_ptr >= left) {
+					return const_iterator(curr, curr_local_ptr - left, global_ptr - n, vec);
+			}
+			left -= (curr_local_ptr + 1);
+			curr--;
+		} 
+		else {
+			if (local_ptr >= n) {
+					return const_iterator(it, local_ptr - n, global_ptr - n, vec);
+			}
+			left -= (local_ptr + 1);
+			curr--;
+		}
+
+		while (left >= (*curr)->size) {
+			left -= (*curr)->size;
+			curr--;
+		}
+		return const_iterator(curr, (*curr)->size - 1 - left, global_ptr - n, vec);
+	}
+
+	/**
+	* return the distance between two iterators.
+	* if they point to different vectors, throw
+	* invaild_iterator.
+	*/
+	int operator-(const const_iterator &rhs) const {
+		if (vec != rhs.vec) throw sjtu::invalid_iterator();
+		return global_ptr - rhs.global_ptr;
+	}
+
+	const_iterator &operator+=(const int &n) {
+		*this = *this + n;
+		return *this;
+	}
+	const_iterator &operator-=(const int &n) {
+		*this = *this - n;
+		return *this;
+	}
+
+	/**
+	* iter++
+	*/
+	const_iterator operator++(int) {
+		const_iterator tmp = *this;
+		if (local_ptr < (*it)->size - 1) {
+			local_ptr++;
+		} else {
+			it++;
+			local_ptr = 0;
+		}
+		global_ptr++; 
+		return tmp;
+	}
+	/**
+	* ++iter
+	*/
+	const_iterator &operator++() {
+		if (local_ptr < (*it)->size - 1) {
+			local_ptr++;
+		} else {
+			it++;
+			local_ptr = 0;
+		}
+		global_ptr++; 
+		return *this;
+	}
+	/**
+	* iter--
+	*/
+	const_iterator operator--(int) {
+		const_iterator tmp = *this;
+		if (local_ptr > 0) {
+			local_ptr--;
+		} else {
+			it--;
+			local_ptr = (*it)->size - 1;
+		}
+		global_ptr--; 
+		return tmp;
+	}
+	/**
+	* --iter
+	*/
+	const_iterator &operator--() {
+		if (local_ptr > 0) {
+			local_ptr--;
+		} else {
+			it--;
+			local_ptr = (*it)->size - 1;
+		}
+		global_ptr--; 
+		return *this;
+	}
+
+	/**
+	* *it
+	*/
+	const T &operator*() const {
+		if (global_ptr < 0 || global_ptr >= vec->tt_size) throw sjtu::invalid_iterator();
+		return (*it)->query(local_ptr);
+	}
+	/**
+	* it->field
+	*/
+	const T *operator->() const noexcept {
+		return &((*it)->query(local_ptr));
+	}
+
+	/**
+	* check whether two iterators are the same (pointing to the same
+	* memory).
+	*/
+	bool operator==(const iterator &rhs) const {
+		if (vec != rhs.vec) return false;
+		return global_ptr == rhs.global_ptr;
+	}
+	bool operator==(const const_iterator &rhs) const {
+		if (vec != rhs.vec) return false;
+		return global_ptr == rhs.global_ptr;
+	}
+	/**
+	* some other operator for iterators.
+	*/
+	bool operator!=(const iterator &rhs) const {
+		return ! (*this == rhs);
+	}
+	bool operator!=(const const_iterator &rhs) const {
+		return ! (*this == rhs);
+	}
+
 	};
 
 	/**
