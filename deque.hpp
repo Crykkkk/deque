@@ -186,6 +186,18 @@ public:
 	/**
 	 * the following are operations of double list
 	 */
+
+	// 为 split 提供帮助的工具函数
+	iterator insert(iterator pos, const T &val) {
+   if (pos.at == nullptr) throw sjtu::invalid_iterator();
+		node* curr = pos.at;
+		node* nd = new node(val, curr->prev, curr);
+		curr->prev->next = nd;
+		curr->prev = nd;
+		size++;
+		return iterator(nd);
+	}
+
 	void insert_head(const T &val) {
 		node* nd = new node(val, head_, head_->next);
 		head_->next = nd;
@@ -233,10 +245,18 @@ public:
 		int head = 0;
 		int size = 0;
 		T &query(int i) {
-			return arr[(head + i) % M]; 
+			return arr[(head + i + M) % M]; 
 		}
 		const T &query(int i) const {
-			return arr[(head + i) % M];
+			return arr[(head + i + M) % M];
+		}
+		void update(int idx, const T & val) {
+			if (idx >= 0) {
+				arr[(head + idx + M) % M] = val;
+			}
+			else {
+				arr[(head + size + idx + M) % M] = val;
+			}
 		}
 	};
 
@@ -617,7 +637,9 @@ public:
 	/**
 		* constructors.
 		*/
-	deque() {}
+	deque() {
+		data.push_back(new circ());
+	}
 	deque(const deque &other) {
 		for (auto it = other.data.begin(); it != other.data.end(); it++) {
 			data.push_back(new circ(*it));
@@ -637,21 +659,21 @@ public:
 	/**
 		* assignment operator.
 		*/
-deque &operator=(const deque &other) {
-    if (this == &other) {
-        return *this;
-    }
-    for (auto it = data.begin(); it != data.end(); ++it) {
-        delete *it; 
-    }
-    data.clear(); 
-    for (auto it = other.data.begin(); it != other.data.end(); ++it) {
-        circ* new_block = new circ(**it); 
-        data.push_back(new_block);
-    }
-    tt_size = other.tt_size;
-    return *this;
-}
+	deque &operator=(const deque &other) {
+		if (this == &other) {
+			return *this;
+		}
+		for (auto it = data.begin(); it != data.end(); ++it) {
+			delete *it; 
+		}
+		data.clear(); 
+		for (auto it = other.data.begin(); it != other.data.end(); ++it) {
+			circ* new_block = new circ(**it); 
+			data.push_back(new_block);
+		}
+		tt_size = other.tt_size;
+		return *this;
+	}
 
 	/**
 		* access a specified element with bound checking.
@@ -763,7 +785,85 @@ deque &operator=(const deque &other) {
 		* return an iterator pointing to the inserted value.
 		* throw if the iterator is invalid or it points to a wrong place.
 		*/
-	iterator insert(iterator pos, const T &value) {}
+
+	// 分裂工具函数，返回分裂后目标位置的 doublelist 迭代器，视情况输出 A / B 端
+	typename double_list<circ*>::iterator split(typename double_list<circ*>::iterator dlit, int op) {
+		circ* block_A = *dlit;
+		circ* block_B = new circ(); // 创建新块 B
+		
+		int move_count = block_A->size / 2; 
+		int start_idx = block_A->size - move_count; 
+		
+		// 数据转移
+		for (int i = 0; i < move_count; i++) {
+			block_B->update(i, block_A->query(start_idx + i));
+		}
+		
+		block_B->size = move_count;
+		block_A->size -= move_count; 
+		
+		// 插入 B 块（使用了 double list 的新函数）
+		auto insert_pos = dlit;
+		insert_pos++; 
+		typename double_list<circ*>::iterator b_it = data.insert(insert_pos, block_B);
+		
+		if (op == 1) {
+			return dlit;
+		} else {
+			return b_it;
+		}
+	}
+
+	iterator insert(iterator pos, const T &value) {
+		if (pos.vec != this || !pos.vec) throw sjtu::invalid_iterator();
+		
+		tt_size += 1;
+		
+		if (pos.it == data.end()) {
+			auto last_it = pos.it;
+			last_it--;
+			circ* last_block = *last_it; 
+			
+			if (last_block->size < M) {
+					last_block->size++;
+					last_block->update(-1, value); 
+					return iterator(last_it, last_block->size - 1, pos.global_ptr, pos.vec);
+			} else {
+					typename double_list<circ*>::iterator new_tar = split(last_it, 2); 
+					circ* new_block = *new_tar;
+					new_block->size++;
+					new_block->update(-1, value);
+					return iterator(new_tar, new_block->size - 1, pos.global_ptr, pos.vec); 
+			}
+		}
+		
+		circ* cur_block = *(pos.it);
+		
+		if (cur_block->size < M) {
+			cur_block->size++;
+			int ptr = pos.local_ptr;
+			for (int i = cur_block->size - 1; i > ptr; i--) {
+					cur_block->update(i, cur_block->query(i - 1));
+			}
+			cur_block->update(ptr, value);
+			return pos; 
+		}
+
+		int offset = (pos.local_ptr >= M / 2) ? 1 : 0; 
+		int idx = pos.local_ptr - (M / 2) * offset;
+
+		typename double_list<circ*>::iterator new_tar = split(pos.it, 1 + offset); 
+		circ* target_block = *new_tar;
+		
+		target_block->size++;
+		for (int i = target_block->size - 1; i > idx; i--) {
+			target_block->update(i, target_block->query(i - 1));
+		}
+		
+		target_block->update(idx, value);
+
+		return iterator(new_tar, idx, pos.global_ptr, pos.vec); 
+	}
 
 	/**
 		* remove the element at pos.
