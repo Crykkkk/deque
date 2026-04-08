@@ -1,3 +1,9 @@
 .clang*
 *~
 deque-my.hpp
+tests/**/one
+tests/**/two
+tests/**/three
+tests/**/four
+tests/**/two_mem
+tests/**/four_mem

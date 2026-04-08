@@ -230,7 +230,7 @@ public:
 	 * if didn't contain anything, return true,
 	 * otherwise false.
 	 */
-	bool empty() {
+	bool empty() const {
 		return !size;
 	}
 };
@@ -240,22 +240,59 @@ public:
 	static const int M = 256;
 	int tt_size = 0;
 
-	struct circ{
-		T arr[M];
+	struct circ {
+		T* arr[M]; // 需要用指针，不然T没有默认构造函数
 		int head = 0;
 		int size = 0;
+
+		circ() {
+			for (int i = 0; i < M; i++) arr[i] = nullptr;
+		}
+
+		circ(const circ& other) {
+			head = other.head;
+			size = other.size;
+			for (int i = 0; i < M; i++) {
+				if (other.arr[i] != nullptr) {
+						arr[i] = new T(*(other.arr[i]));
+				} else {
+						arr[i] = nullptr;
+				}
+			}
+		}
+
+		~circ() {
+			for (int i = 0; i < M; i++) {
+				if (arr[i] != nullptr) delete arr[i];
+			}
+		}
+
 		T &query(int i) {
-			return arr[(head + i + M) % M]; 
+			return *(arr[(head + i + M) % M]); 
 		}
 		const T &query(int i) const {
-			return arr[(head + i + M) % M];
+			return *(arr[(head + i + M) % M]);
 		}
+
 		void update(int idx, const T & val) {
+			int pos;
 			if (idx >= 0) {
-				arr[(head + idx + M) % M] = val;
+				pos = (head + idx + M) % M;
+			} else {
+				pos = (head + size + idx + M) % M;
 			}
-			else {
-				arr[(head + size + idx + M) % M] = val;
+
+			if (arr[pos] == nullptr) {
+				arr[pos] = new T(val);
+			} else {
+				*(arr[pos]) = val;
+			}
+		}
+		void destroy(int idx) {
+			int pos = (head + idx + M) % M;
+			if (arr[pos] != nullptr) {
+				delete arr[pos];
+				arr[pos] = nullptr;
 			}
 		}
 	};
@@ -266,13 +303,13 @@ public:
 	class iterator {
 		friend class const_iterator;
 	private:
-		// 指示当前所在的数组
-		typename double_list<circ*>::iterator it = double_list<circ*>().end();
-		int local_ptr = -1;
-		int global_ptr = -1;
-		deque<T>* vec = nullptr;
-
 	public:
+	iterator() = default;
+	// 指示当前所在的数组
+	typename double_list<circ*>::iterator it = double_list<circ*>().end();
+	int local_ptr = -1;
+	int global_ptr = -1;
+	deque<T>* vec = nullptr;
 	iterator(typename double_list<circ*>::iterator otit, int lp, int gp, deque<T>* dptr): 
 		it(otit), local_ptr(lp), global_ptr(gp), vec(dptr) {}
 	/**
@@ -453,13 +490,14 @@ public:
 		*/
 
 	private:
-		// 指示当前所在的数组
-		typename double_list<circ*>::iterator it = double_list<circ*>().end();
-		int local_ptr = -1;
-		int global_ptr = -1;
-		const deque<T>* vec = nullptr;
-
 	public:
+	const_iterator() = default;
+	// 指示当前所在的数组
+	typename double_list<circ*>::iterator it = double_list<circ*>().end();
+	int local_ptr = -1;
+	int global_ptr = -1;
+	const deque<T>* vec = nullptr;
+
 	const_iterator(typename double_list<circ*>::iterator otit, int lp, int gp, const deque<T>* dptr): 
 		it(otit), local_ptr(lp), global_ptr(gp), vec(dptr) {}
 	const_iterator(iterator ncit) : it(ncit.it), local_ptr(ncit.local_ptr), global_ptr(ncit.global_ptr), vec(ncit.vec) {}
@@ -642,7 +680,7 @@ public:
 	}
 	deque(const deque &other) {
 		for (auto it = other.data.begin(); it != other.data.end(); it++) {
-			data.insert_tail(new circ(*it));
+			data.insert_tail(new circ(**it));
 		}
 		tt_size = other.tt_size;
 	}
@@ -798,6 +836,7 @@ public:
 		// 数据转移
 		for (int i = 0; i < move_count; i++) {
 			block_B->update(i, block_A->query(start_idx + i));
+			block_A->destroy(start_idx + i);
 		}
 		
 		block_B->size = move_count;
@@ -916,11 +955,12 @@ iterator erase(iterator pos) {
         place->update(i, place->query(i + 1));
     }
 
+	 place->destroy(place->size);
+
     int thres = (M * 3) / 4;
 
-    if (data.size() > 1) { 
+    if (data.size > 1) { 
         auto next_it = pos.it; next_it++;
-        auto prev_it = pos.it; prev_it--;
         
         if (next_it != data.end()) {
             if (place->size + (*next_it)->size <= thres || place->size == 0 || (*next_it)->size == 0) {
@@ -929,6 +969,8 @@ iterator erase(iterator pos) {
                 new_local = pos.local_ptr;
             }
         } else if (pos.it != data.begin()) {
+				auto prev_it = pos.it; 
+        		prev_it--;
             if (place->size + (*prev_it)->size <= thres || place->size == 0 || (*prev_it)->size == 0) {
                 flag = 1;
                 int sz = (*prev_it)->size;
@@ -937,10 +979,14 @@ iterator erase(iterator pos) {
             }
         }
     }
-    if (!flag && new_local == (*new_it)->size) {
+	if (new_local == (*new_it)->size) {
         auto check_next = new_it; check_next++;
+        
         if (check_next != data.end()) {
             new_it++;
+            new_local = 0;
+        } else {
+            new_it = data.end();
             new_local = 0;
         }
     }
@@ -960,6 +1006,7 @@ iterator erase(iterator pos) {
 		* throw when the container is empty.
 		*/
 	void pop_back() {
+		if (tt_size == 0) throw sjtu::container_is_empty();
 		iterator tar = end();
 		tar--;
 		erase(tar);
@@ -997,12 +1044,13 @@ iterator erase(iterator pos) {
 		tt_size--;
 		Baseit pos = data.begin();
 		circ* place = *pos;
+		place->destroy(0);
 		place->size--;
 		place->head = (place->head + 1) % M;
 
 		int thres = (M * 3) / 4;
 
-		if (data.size() > 1) { 
+		if (data.size > 1) { 
 			auto next_it = pos; next_it++;
 			if (place->size + (*next_it)->size <= thres || place->size == 0 || (*next_it)->size == 0) {
 				merge(pos, next_it); 
