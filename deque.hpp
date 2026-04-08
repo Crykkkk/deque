@@ -815,7 +815,7 @@ public:
 	}
 
 	iterator insert(iterator pos, const T &value) {
-		if (pos.vec != this || !pos.vec) throw sjtu::invalid_iterator();
+		if (pos.vec != this) throw sjtu::invalid_iterator();
 		
 		tt_size += 1;
 		
@@ -871,29 +871,143 @@ public:
 		* the last element, return end(). throw if the container is empty,
 		* the iterator is invalid, or it points to a wrong place.
 		*/
-	iterator erase(iterator pos) {}
+	using Baseit = typename double_list<circ*>::iterator;
+	Baseit merge(Baseit a, Baseit b) {
+		circ* block_a = *a;
+		circ* block_b = *b;
+		circ* newcirc = new circ();
+		
+		newcirc->size = block_a->size + block_b->size;
+		newcirc->head = 0;
+		
+		for (int i = 0; i < block_a->size; i++) {
+			newcirc->update(i, block_a->query(i));
+		}
+		for (int i = 0; i < block_b->size; i++) {
+			newcirc->update(block_a->size + i, block_b->query(i));
+		}
+		
+		Baseit insert_pos = b;
+		insert_pos++;
+		data.erase(a);
+		data.erase(b);
+		delete block_a;
+		delete block_b;
+		return data.insert(insert_pos, newcirc);
+	}
+
+iterator erase(iterator pos) {
+    if (pos == end() || pos.vec != this) throw sjtu::invalid_iterator();
+    if (tt_size == 0) throw sjtu::container_is_empty();
+    
+    int flag = 0;
+    typename double_list<circ*>::iterator new_it = pos.it; 
+    int new_local = pos.local_ptr;
+    int gbl = pos.global_ptr;
+
+    tt_size--;
+    
+    circ* place = *(pos.it);
+    place->size--;
+    
+    int idx = pos.local_ptr;
+    for (int i = idx; i < place->size; i++) {
+        place->update(i, place->query(i + 1));
+    }
+
+    int thres = (M * 3) / 4;
+
+    if (data.size() > 1) { 
+        auto next_it = pos.it; next_it++;
+        auto prev_it = pos.it; prev_it--;
+        
+        if (next_it != data.end()) {
+            if (place->size + (*next_it)->size <= thres) {
+                flag = 1;
+                new_it = merge(pos.it, next_it); 
+                new_local = pos.local_ptr;
+            }
+        } else if (pos.it != data.begin()) {
+            if (place->size + (*prev_it)->size <= thres) {
+                flag = 1;
+                int sz = (*prev_it)->size;
+                new_it = merge(prev_it, pos.it);
+                new_local = pos.local_ptr + sz;
+            }
+        }
+    }
+    if (!flag && new_local == (*new_it)->size) {
+        auto check_next = new_it; check_next++;
+        if (check_next != data.end()) {
+            new_it++;
+            new_local = 0;
+        }
+    }
+
+    return iterator(new_it, new_local, gbl, this);
+}
 
 	/**
 		* add an element to the end.
 		*/
-	void push_back(const T &value) {}
+	void push_back(const T &value) {
+		insert(end(), value);
+	}
 
 	/**
 		* remove the last element.
 		* throw when the container is empty.
 		*/
-	void pop_back() {}
+	void pop_back() {
+		iterator tar = end();
+		tar--;
+		erase(tar);
+	}
 
 	/**
 		* insert an element to the beginning.
 		*/
-	void push_front(const T &value) {}
+	void push_front(const T &value) {
+		tt_size++;
+		Baseit bit = data.begin();
+		circ* bg = *bit;
+		if (bg->size < M) {
+			int head = ((bg->head) - 1 + M) % M; 
+			bg->update(head, value);
+			bg->head = head;
+			bg->size++;
+		}
+		else {
+			Baseit new_tar = split(bit, 1); 
+			circ* newbg = *new_tar;
+			int head = M - 1; 
+			bg->update(head, value);
+			bg->head = head;
+			bg->size++;
+		}
+	}
 
 	/**
 		* remove the first element.
 		* throw when the container is empty.
 		*/
-	void pop_front() {}
+	void pop_front() {
+		if (tt_size == 0) throw sjtu::container_is_empty();
+		tt_size--;
+		Baseit pos = data.begin();
+		circ* place = *pos;
+		place->size--;
+		place->head++;
+
+		int thres = (M * 3) / 4;
+
+		if (data.size() > 1) { 
+			auto next_it = pos.it; next_it++;
+			if (place->size + (*next_it)->size <= thres) {
+				merge(pos.it, next_it); 
+			}
+		}
+	}
 };
 
 } // namespace sjtu
