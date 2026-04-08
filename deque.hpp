@@ -638,11 +638,11 @@ public:
 		* constructors.
 		*/
 	deque() {
-		data.push_back(new circ());
+		data.insert_tail(new circ());
 	}
 	deque(const deque &other) {
 		for (auto it = other.data.begin(); it != other.data.end(); it++) {
-			data.push_back(new circ(*it));
+			data.insert_tail(new circ(*it));
 		}
 		tt_size = other.tt_size;
 	}
@@ -669,7 +669,7 @@ public:
 		data.clear(); 
 		for (auto it = other.data.begin(); it != other.data.end(); ++it) {
 			circ* new_block = new circ(**it); 
-			data.push_back(new_block);
+			data.insert_tail(new_block);
 		}
 		tt_size = other.tt_size;
 		return *this;
@@ -752,7 +752,7 @@ public:
 		return iterator(data.end(), 0, tt_size, this);
 	}
 	const_iterator cend() const {
-		return cosnt_iterator(data.end(), 0, tt_size, this);
+		return const_iterator(data.end(), 0, tt_size, this);
 	}
 
 	/**
@@ -777,6 +777,7 @@ public:
 			delete *it;
 		}
 		data.clear();
+		data.insert_tail(new circ());
 		tt_size = 0;
 	}
 
@@ -922,13 +923,13 @@ iterator erase(iterator pos) {
         auto prev_it = pos.it; prev_it--;
         
         if (next_it != data.end()) {
-            if (place->size + (*next_it)->size <= thres) {
+            if (place->size + (*next_it)->size <= thres || place->size == 0 || (*next_it)->size == 0) {
                 flag = 1;
                 new_it = merge(pos.it, next_it); 
                 new_local = pos.local_ptr;
             }
         } else if (pos.it != data.begin()) {
-            if (place->size + (*prev_it)->size <= thres) {
+            if (place->size + (*prev_it)->size <= thres || place->size == 0 || (*prev_it)->size == 0) {
                 flag = 1;
                 int sz = (*prev_it)->size;
                 new_it = merge(prev_it, pos.it);
@@ -971,19 +972,19 @@ iterator erase(iterator pos) {
 		tt_size++;
 		Baseit bit = data.begin();
 		circ* bg = *bit;
+		
 		if (bg->size < M) {
-			int head = ((bg->head) - 1 + M) % M; 
-			bg->update(head, value);
-			bg->head = head;
-			bg->size++;
+			bg->head = (bg->head - 1 + M) % M; // 这里需要注意顺序，先得更新 head
+			bg->size++;                      
+			bg->update(0, value);             
 		}
 		else {
 			Baseit new_tar = split(bit, 1); 
-			circ* newbg = *new_tar;
-			int head = M - 1; 
-			bg->update(head, value);
-			bg->head = head;
-			bg->size++;
+			circ* newbg = *new_tar; 
+			
+			newbg->head = (newbg->head - 1 + M) % M;
+			newbg->size++;
+			newbg->update(0, value);
 		}
 	}
 
@@ -997,14 +998,14 @@ iterator erase(iterator pos) {
 		Baseit pos = data.begin();
 		circ* place = *pos;
 		place->size--;
-		place->head++;
+		place->head = (place->head + 1) % M;
 
 		int thres = (M * 3) / 4;
 
 		if (data.size() > 1) { 
-			auto next_it = pos.it; next_it++;
-			if (place->size + (*next_it)->size <= thres) {
-				merge(pos.it, next_it); 
+			auto next_it = pos; next_it++;
+			if (place->size + (*next_it)->size <= thres || place->size == 0 || (*next_it)->size == 0) {
+				merge(pos, next_it); 
 			}
 		}
 	}
