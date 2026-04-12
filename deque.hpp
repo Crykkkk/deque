@@ -268,18 +268,18 @@ public:
 		}
 
 		T &query(int i) {
-			return *(arr[(head + i + M) % M]); 
+			return *(arr[(head + i + M) & (M - 1)]); 
 		}
 		const T &query(int i) const {
-			return *(arr[(head + i + M) % M]);
+			return *(arr[(head + i + M) & (M - 1)]);
 		}
 
 		void update(int idx, const T & val) {
 			int pos;
 			if (idx >= 0) {
-				pos = (head + idx + M) % M;
+				pos = (head + idx + M) & (M - 1);
 			} else {
-				pos = (head + size + idx + M) % M;
+				pos = (head + size + idx + M) & (M - 1);
 			}
 
 			if (arr[pos] == nullptr) {
@@ -289,11 +289,17 @@ public:
 			}
 		}
 		void destroy(int idx) {
-			int pos = (head + idx + M) % M;
+			int pos = (head + idx + M) & (M - 1);
 			if (arr[pos] != nullptr) {
 				delete arr[pos];
 				arr[pos] = nullptr;
 			}
+		}
+		void move_pointer(int from_idx, int to_idx) {
+			int pos_from = (head + from_idx + M) % M;
+			int pos_to = (head + to_idx + M) % M;
+			arr[pos_to] = arr[pos_from]; 
+			arr[pos_from] = nullptr;
 		}
 	};
 
@@ -883,7 +889,7 @@ public:
 			cur_block->size++;
 			int ptr = pos.local_ptr;
 			for (int i = cur_block->size - 1; i > ptr; i--) {
-					cur_block->update(i, cur_block->query(i - 1));
+					cur_block->move_pointer(i - 1,	i);
 			}
 			cur_block->update(ptr, value);
 			return pos; 
@@ -897,7 +903,7 @@ public:
 		
 		target_block->size++;
 		for (int i = target_block->size - 1; i > idx; i--) {
-			target_block->update(i, target_block->query(i - 1));
+			target_block->move_pointer(i - 1,	i);
 		}
 		
 		target_block->update(idx, value);
@@ -951,11 +957,14 @@ iterator erase(iterator pos) {
     place->size--;
     
     int idx = pos.local_ptr;
+
+	 place->destroy(idx);
+
     for (int i = idx; i < place->size; i++) {
-        place->update(i, place->query(i + 1));
+        place->move_pointer(i + 1,	i);
     }
 
-	 place->destroy(place->size);
+	//  place->destroy(place->size);
 
     int thres = (M * 3) / 4;
 
@@ -1021,7 +1030,7 @@ iterator erase(iterator pos) {
 		circ* bg = *bit;
 		
 		if (bg->size < M) {
-			bg->head = (bg->head - 1 + M) % M; // 这里需要注意顺序，先得更新 head
+			bg->head = (bg->head - 1 + M) & (M - 1); // 这里需要注意顺序，先得更新 head
 			bg->size++;                      
 			bg->update(0, value);             
 		}
@@ -1029,7 +1038,7 @@ iterator erase(iterator pos) {
 			Baseit new_tar = split(bit, 1); 
 			circ* newbg = *new_tar; 
 			
-			newbg->head = (newbg->head - 1 + M) % M;
+			newbg->head = (newbg->head - 1 + M) & (M - 1);
 			newbg->size++;
 			newbg->update(0, value);
 		}
